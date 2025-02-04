@@ -158,13 +158,6 @@ trace2 = go.Bar(
     name='Deadly Crashes'
 )
 
-# trace3 = go.Bar(
-#     x=years,
-#     y=yearly_deaths,
-#     name='Individual Deaths'
-# )
-
-
 # Create the layout
 layout = go.Layout(
     barmode='stack',
