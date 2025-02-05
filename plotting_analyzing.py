@@ -3,51 +3,42 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 # %%
 df = pd.read_csv('C:/Users/Ville/OneDrive/Desktop/crash_data/cleanned_transformed.csv')
 # %%
-df
+#creating a binary column if there were more than 0 deaths
+df['Deadly Crash'] = np.where(df['Crash Death Count'] > 0, 1,0)
 # %%
-#grouping and counting unique type crashes every year, renaming column and making year the index
-yearly_type_counts = df.groupby(['Year','Unit Description'])['Crash ID'].nunique().reset_index()
-yearly_type_counts.rename(columns={'Crash ID': 'Crash Count'}, inplace=True)
-yearly_type_counts.set_index('Year', inplace=True)
-yearly_type_counts
+df
+#%%
+yearly_type_summary =  df.groupby(['Year','Unit Description']).agg(
+   # crashed_units = ('Crash ID', 'count'), #counting all units involved in crashes
+    unique_crashes = ('Crash ID', 'nunique'), #counting unique crashes
+    deadly_crashes = ('Crash ID', lambda x: x[df.loc[x.index, 'Deadly Crash'] == 1].nunique())
+).reset_index()
+#%%
+yearly_type_summary.set_index('Year', inplace=True)
+#yearly_type_summary
 # %%
 #pivoting so i can trend each unit type
-df_pivot = yearly_type_counts.pivot_table(values='Crash Count', index=yearly_type_counts.index, columns='Unit Description')
+df_pivot = yearly_type_summary.pivot_table(values=['unique_crashes', 'deadly_crashes'], index=yearly_type_summary.index, columns='Unit Description')
+#%%
+#df_pivot
 # %%
-#filtering data to only include deaths
-filtered_df = df[df['Crash Death Count'] > 0]
-# %%
-#grouping deathly crashes by unit type, renaming column, and setting year as index
-death_yearly_type_counts = filtered_df.groupby(['Year','Unit Description'])['Crash ID'].nunique().reset_index()
-death_yearly_type_counts.rename(columns={'Crash ID': 'Death Count'}, inplace=True)
-death_yearly_type_counts.set_index('Year', inplace=True)
-# %%
-df_death_pivot = death_yearly_type_counts.pivot_table(values='Death Count', index=death_yearly_type_counts.index, columns='Unit Description')
-# %%
-#editing crash count plot
-plt.figure(figsize=(10, 6))
-for col in df_pivot.columns:
-    plt.plot(df_pivot.index, df_pivot[col], marker='o', label=col)
-    
+plt.figure(figsize=(10, 8))
+colors = ['r', 'c', 'm']    
+for col, i in zip(df_pivot['unique_crashes'].columns, colors):
+    plt.plot(df_pivot.index, df_pivot['unique_crashes'][col], marker='o',label=col+ ' CRASHES', color=i)
+
+for col, i in zip(df_pivot['deadly_crashes'].columns, colors):
+    plt.plot(df_pivot.index, df_pivot['deadly_crashes'][col],  linestyle='dashed', label='DEADLY '+col+' CRASHES', color=i)
+
 plt.xlabel('Year')
 plt.ylabel('Crash Count')
-plt.title('Yearly Crash Count per Unit Type')
-plt.legend(title='Unit Type')
-plt.grid(True)
-plt.show
-# %%
-#editing death plot
-plt.figure(figsize=(10, 6))
-for col in df_death_pivot.columns:
-    plt.plot(df_death_pivot.index, df_death_pivot[col], marker='o', label=col)
-    
-plt.xlabel('Year')
-plt.ylabel('Death Count')
-plt.title('Yearly Crash Death Count per Unit Type')
-plt.legend(title='Unit Type')
+plt.yscale('log')
+plt.title('Yearly - Crash and Deadly Crash')
+plt.legend(title='Unit Type', loc='upper left', bbox_to_anchor=(1,1))
 plt.grid(True)
 plt.show
 # %%
@@ -56,143 +47,96 @@ plt.show
 # Furthermore from 2021 to 2022 there was an increase in moto vehicle crashes, but a decrease in deaths cause by this type of crashes
 # Ultimately, we cannot say that less or more motor vehicle crashes equals less or more deaths
 # 2 motorized conveyance deaths in the 7 years, we can remove this type
-# %%
-#merging deaths to total crashes df to further compare
-crash_unit_summary = pd.merge(yearly_type_counts, death_yearly_type_counts, how= 'left', on= ['Year', 'Unit Description'])
-# %%
-#what percent of crashes resulted in deaths for each unit type?
-crash_unit_summary['Percent Deaths'] = ((crash_unit_summary['Death Count'] / crash_unit_summary['Crash Count']) * 100).round(1)
-# %%
-crash_unit_summary
-# %%
-df_percent_death_pivot = crash_unit_summary.pivot_table(values='Percent Deaths', index=crash_unit_summary.index, columns='Unit Description')
-df_percent_death_pivot
-# %%
-crash_unit_summary.reset_index(inplace=True)
-# %%
+#%%
 #making years to a list to use in the plot as x axis
-years = crash_unit_summary['Year'].drop_duplicates()
+years = df['Year'].drop_duplicates()
 years = years.to_list()
-years
+#years
 # %%
-motor_data = crash_unit_summary[crash_unit_summary['Unit Description'] == 'MOTOR VEHICLE']
-motor_data
-# %%
-pedal_data = crash_unit_summary[crash_unit_summary['Unit Description'] == 'PEDALCYCLIST']
-pedal_data
-# %%
-walking_data = crash_unit_summary[crash_unit_summary['Unit Description'] == 'PEDESTRIAN']
-walking_data
+#yearly counts
+year_summary =  df.groupby(['Year']).agg(
+   # crashed_units = ('Crash ID', 'count'), #counting all units involved in crashes
+    unique_crashes = ('Crash ID', 'nunique'), #counting unique crashes
+    deadly_crashes = ('Crash ID', lambda x: x[df.loc[x.index, 'Deadly Crash'] == 1].nunique())
+).reset_index()
 #%%
-#grouping and counting unique type crashes every year, renaming column and making year the index
-yearly_type_counts = df.groupby(['Year','Unit Description'])['Crash ID'].nunique().reset_index()
-yearly_type_counts.rename(columns={'Crash ID': 'Crash Count'}, inplace=True)
-yearly_type_counts.set_index('Year', inplace=True)
-yearly_type_counts
+#year_summary
 #%%
-#pivoting so i can trend each unit type
-df_pivot = yearly_type_counts.pivot_table(values='Crash Count', index=yearly_type_counts.index, columns='Unit Description')
-#%%
-#quick plot without customization
-df_pivot.plot()
+unit_summary =  df.groupby(['Unit Description']).agg(
+   # crashed_units = ('Crash ID', 'count'), #counting all units involved in crashes
+    unique_crashes = ('Crash ID', 'nunique'), #counting unique crashes
+    deadly_crashes = ('Crash ID', lambda x: x[df.loc[x.index, 'Deadly Crash'] == 1].nunique())
+).reset_index()
 # %%
+unit_summary['deadly_percent'] = ((unit_summary['deadly_crashes'] / unit_summary['unique_crashes'])*100).round(1)
+# %%
+# crashes = unit_summary['unique_crashes']
+# deadly=  unit_summary['deadly_crashes']
+unit_type =  unit_summary['Unit Description']
+percent = unit_summary['deadly_percent']
 
-#%%
-#filtering data to only include deaths
-filtered_df = df[df['Crash Death Count'] > 0]
-#%%
-#grouping deathly crashes by unit type, renaming column, and setting year as index
-death_yearly_type_counts = filtered_df.groupby(['Year','Unit Description'])['Crash ID'].nunique().reset_index()
-death_yearly_type_counts.rename(columns={'Crash ID': 'Death Count'}, inplace=True)
-death_yearly_type_counts.set_index('Year', inplace=True)
-#%%
-motor = motor_data['Crash Count']
-motor_death = motor_data['Death Count']
-pedal = pedal_data['Crash Count']
-pedal_death = pedal_data['Death Count']
-walking = walking_data['Crash Count']
-walking_death = walking_data['Death Count']
-# %%
-#creating a bar graph to see how many crashes end in death
-yearly_crash_summary = df.groupby(['Year'])['Crash ID'].nunique().reset_index()
-yearly_crash_summary.rename(columns={'Crash ID': 'Crash Count'}, inplace=True)
-yearly_crash_summary.set_index('Year', inplace=True)
-yearly_crash_summary
-# %%
-#total deaths cause by crashes
-yearly_deaths = filtered_df.groupby(['Year'])['Crash ID'].count().reset_index()
-#count of crashes that ended in death
-yearly_death_summary = filtered_df.groupby(['Year'])['Crash ID'].nunique().reset_index()
-yearly_death_summary.set_index('Year', inplace=True)
-# %%
+# horizontal bar chart
+plt.barh(unit_type, percent , color='skyblue')
 
-#%%
-yearly_death_summary
-# %%
-yearly_death_summary.rename(columns={'Crash ID': 'Deadly Accidents'}, inplace=True)
-yearly_deaths.rename(columns={'Crash ID': 'Deaths'}, inplace=True)
-# %%
-year_summary = pd.merge(yearly_crash_summary, yearly_death_summary, how= 'left', on= ['Year'])
-# %%
-year_summary = pd.merge(year_summary, yearly_deaths, how= 'left', on= ['Year'])
-#%%
-year_summary
-#%%
-import plotly.graph_objects as go
+# Add title and labels
+plt.title('Percent of Crashes that are Deadly')
+plt.xlabel('Percentage')
+plt.ylabel('Unit Type')
 
-# Sample data
-
-crashes =year_summary['Crash Count']
-deaths = year_summary['Deaths']
-deadly= year_summary['Deadly Accidents']
-
+# Show the plot
+plt.show()
+#%%
+#crash percent change every year
+year_summary['crashes_pchange'] = (year_summary['unique_crashes'].pct_change() * 100).round(0)
+year_summary['deadly_pchange'] = (year_summary['deadly_crashes'].pct_change() * 100).round(0)
+# %%
 # Create traces
-trace1 = go.Bar(
+trace1 = go.Line(
     x=years,
-    y=crashes,
-    name='Crashes'
-)
-trace2 = go.Bar(
-    x=years,
-    y=deadly,
-    name='Deadly Crashes'
+    y=year_summary['unique_crashes'],
+    hovertemplate = '%{y}'+'<br>'+'%{text}',
+    #percent change to tooltip
+                           text = ['percent change {}'.format(i) for i in year_summary['crashes_pchange']]
+, name = 'Crashes'
 )
 
 # Create the layout
 layout = go.Layout(
-    barmode='stack',
-    title='Yearly Crashes and Deadly Crashes',
+    
+    title='Yearly Crashes',
     xaxis=dict(title='Crash Year'),
     yaxis=dict(title='Count')
      , width=800, height=400
-    
 )
-
 # Create the figure
-fig = go.Figure(data=[trace2, trace1], layout=layout)
-
+fig = go.Figure(data=[trace1], layout=layout)
 #use log scale to better view death trend
-fig.update_layout(xaxis_type="log", yaxis_type="log") 
+#fig.update_layout(xaxis_type="log", yaxis_type="log") 
 # Show the figure
 fig.show()
 # %%
-# %%
-#vizualizing Walking crashes that end in death
-x = years
+# Create traces
 
-plt.bar(x, crashes, 0.4 , color = 'y', edgecolor = 'black',
-        label='Crashes', bottom=deadly, log=
-        True) 
+trace2 = go.Line(
+    x=years,
+    y=year_summary['deadly_crashes'],
+    name='Deadly Crashes'
+    , line=dict(color="red")
+    ,  hovertemplate = '%{y}'+'<br>'+'%{text}',
+    #percent change to tooltip
+                           text = ['percent change {}'.format(i) for i in year_summary['deadly_pchange']]
+)
+# Create the layout
+layout = go.Layout(
+    title='Yearly Deadly Crashes',
+    xaxis=dict(title='Crash Year'),
+    yaxis=dict(title='Count')
+     , width=800, height=400
+     
+)
+# Create the figure
+fig = go.Figure(data=[trace2], layout=layout)
 
-plt.bar(x, deadly, 0.4  , color = 'r', edgecolor = 'black',
-        label='Deadly Crashes', log=True) 
-
-plt.xlabel("Crash Year") 
-plt.ylabel("Counts") 
-plt.title("Yearly Deaths and Crashes")  
-plt.legend() 
-# %%
-
-# %%
-
-# %%
+# Show the figure
+fig.show()
+#significant decrease in deadly crashes from 2022 to 2023, what happened?
